@@ -61,8 +61,7 @@ jobs:
       - name: Build Windows
         if: matrix.platform == 'windows'
         shell: pwsh
-        run: |
-          python -m nuitka --standalone --onefile --enable-plugin=pyside6 --assume-yes-for-downloads --output-dir=build --output-filename=LVF-Tool.exe lvf_tool
+        run: python -m nuitka --standalone --onefile --enable-plugin=pyside6 --assume-yes-for-downloads --output-dir=build --output-filename=LVF-Tool.exe lvf_tool
 
       - name: Package Windows
         if: matrix.platform == 'windows'
