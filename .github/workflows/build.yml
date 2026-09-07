@@ -68,7 +68,7 @@ jobs:
             --assume-yes-for-downloads `
             --output-dir=build `
             --output-filename=LVF-Tool.exe `
-            lvf_tool/__main__.py
+            lvf_tool
 
       - name: Package Windows
         if: matrix.platform == 'windows'
@@ -94,7 +94,7 @@ jobs:
             --enable-plugin=pyside6 \
             --output-dir=build \
             --output-filename=LVF-Tool \
-            lvf_tool/__main__.py
+            lvf_tool
 
       - name: Package Linux
         if: matrix.platform == 'linux'
