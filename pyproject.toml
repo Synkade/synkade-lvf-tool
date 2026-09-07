@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "lvf-tool"
+version = "0.1.0"
+description = "Compress/decompress .lvf (Level Video Format) and .laf (Level Audio Format) files for the Dance Game project."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+dependencies = [
+    "PySide6>=6.6",
+    "cryptography>=42.0",
+]
+
+[project.scripts]
+lvf-tool = "lvf_tool.__main__:main"
+
+[tool.setuptools.packages.find]
+include = ["lvf_tool*"]
