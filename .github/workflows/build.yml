@@ -120,10 +120,8 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-
-      # -------------------------
-      # Download Windows artifact
-      # -------------------------
+      - name: Checkout
+        uses: actions/checkout@v6
 
       - name: Download Windows artifact
         uses: actions/download-artifact@v5
@@ -131,19 +129,11 @@ jobs:
           name: LVF-Tool-${{ github.ref_name }}-windows
           path: release
 
-      # -------------------------
-      # Download Linux artifact
-      # -------------------------
-
       - name: Download Linux artifact
         uses: actions/download-artifact@v5
         with:
           name: LVF-Tool-${{ github.ref_name }}-linux
           path: release
-
-      # -------------------------
-      # Create Release
-      # -------------------------
 
       - name: Create GitHub Release
         env:
