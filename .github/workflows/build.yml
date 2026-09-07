@@ -1,17 +1,18 @@
-name: Build LVF-Tool
+name: Build and Release LVF-Tool
 
 on:
   push:
     tags:
       - "v*"
+
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build:
-    name: Build ${{ matrix.os }}
+    name: Build ${{ matrix.platform }}
     runs-on: ${{ matrix.os }}
 
     strategy:
@@ -20,65 +21,136 @@ jobs:
         include:
           - os: windows-latest
             platform: windows
-            python: "3.12"
-            extension: ".exe"
 
           - os: ubuntu-latest
             platform: linux
-            python: "3.12"
-            extension: ""
 
     steps:
+      # -------------------------
+      # Checkout
+      # -------------------------
+
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
+
+      # -------------------------
+      # Python
+      # -------------------------
 
       - name: Setup Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7
         with:
-          python-version: ${{ matrix.python }}
+          python-version: "3.12"
+          cache: pip
+
+      # -------------------------
+      # Dependencies
+      # -------------------------
 
       - name: Install dependencies
+        shell: bash
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          pip install nuitka
+          python -m pip install -r requirements.txt
+          python -m pip install nuitka
 
-      - name: Install FFmpeg
-        if: matrix.platform == 'linux'
+      # ============================================================
+      # Windows
+      # ============================================================
+
+      - name: Build Windows
+        if: matrix.platform == 'windows'
+        shell: pwsh
+        run: python -m nuitka --standalone --onefile --enable-plugin=pyside6 --assume-yes-for-downloads --output-dir=build --output-filename=LVF-Tool.exe lvf_tool
+
+      - name: Package Windows
+        if: matrix.platform == 'windows'
+        shell: pwsh
         run: |
-          sudo apt-get update
-          sudo apt-get install -y ffmpeg
+          New-Item -ItemType Directory -Force -Path release
 
-      - name: Build with Nuitka
+          Compress-Archive `
+            -Path "build/LVF-Tool.exe" `
+            -DestinationPath "release/LVF-Tool-${{ github.ref_name }}-windows.zip"
+
+      # ============================================================
+      # Linux
+      # ============================================================
+
+      - name: Build Linux
+        if: matrix.platform == 'linux'
+        shell: bash
         run: |
           python -m nuitka \
             --standalone \
             --onefile \
             --enable-plugin=pyside6 \
-            --output-filename=LVF-Tool${{ matrix.extension }} \
-            lvf_tool/__main__.py
+            --assume-yes-for-downloads \
+            --output-dir=build \
+            --output-filename=LVF-Tool \
+            lvf_tool
 
-      - name: Rename Linux binary
+      - name: Package Linux
         if: matrix.platform == 'linux'
+        shell: bash
         run: |
-          mv LVF-Tool LVF-Tool-linux
+          mkdir -p release
 
-      - name: Rename Windows binary
-        if: matrix.platform == 'windows'
-        shell: pwsh
+          zip \
+            "release/LVF-Tool-${{ github.ref_name }}-linux.zip" \
+            build/LVF-Tool
+
+      # ============================================================
+      # Upload artifacts
+      # ============================================================
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v5
+        with:
+          name: LVF-Tool-${{ github.ref_name }}-${{ matrix.platform }}
+          path: release/*.zip
+
+  # ==============================================================
+  # GitHub Release
+  # ==============================================================
+
+  release:
+    name: Create GitHub Release
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+
+      # -------------------------
+      # Download Windows artifact
+      # -------------------------
+
+      - name: Download Windows artifact
+        uses: actions/download-artifact@v5
+        with:
+          name: LVF-Tool-${{ github.ref_name }}-windows
+          path: release
+
+      # -------------------------
+      # Download Linux artifact
+      # -------------------------
+
+      - name: Download Linux artifact
+        uses: actions/download-artifact@v5
+        with:
+          name: LVF-Tool-${{ github.ref_name }}-linux
+          path: release
+
+      # -------------------------
+      # Create Release
+      # -------------------------
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
         run: |
-          Rename-Item "LVF-Tool.exe" "LVF-Tool-windows.exe"
-
-      - name: Upload Windows artifact
-        if: matrix.platform == 'windows'
-        uses: actions/upload-artifact@v4
-        with:
-          name: LVF-Tool-windows
-          path: LVF-Tool-windows.exe
-
-      - name: Upload Linux artifact
-        if: matrix.platform == 'linux'
-        uses: actions/upload-artifact@v4
-        with:
-          name: LVF-Tool-linux
-          path: LVF-Tool-linux
+          gh release create "${{ github.ref_name }}" \
+            release/*.zip \
+            --title "LVF-Tool ${{ github.ref_name }}" \
+            --generate-notes
