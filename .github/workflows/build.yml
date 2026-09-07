@@ -12,7 +12,7 @@ permissions:
 
 jobs:
   build:
-    name: Build ${{ matrix.os }}
+    name: Build ${{ matrix.platform }}
     runs-on: ${{ matrix.os }}
 
     strategy:
@@ -26,23 +26,36 @@ jobs:
             platform: linux
 
     steps:
+      # -------------------------
+      # Checkout
+      # -------------------------
+
       - name: Checkout
         uses: actions/checkout@v6
+
+      # -------------------------
+      # Python
+      # -------------------------
 
       - name: Setup Python
         uses: actions/setup-python@v7
         with:
           python-version: "3.12"
 
+      # -------------------------
+      # Dependencies
+      # -------------------------
+
       - name: Install dependencies
+        shell: bash
         run: |
           python -m pip install --upgrade pip
           python -m pip install -r requirements.txt
           python -m pip install nuitka
 
-      # -------------------------
+      # ============================================================
       # Windows
-      # -------------------------
+      # ============================================================
 
       - name: Build Windows
         if: matrix.platform == 'windows'
@@ -50,6 +63,7 @@ jobs:
         run: |
           python -m nuitka `
             --standalone `
+            --onefile `
             --enable-plugin=pyside6 `
             --output-dir=build `
             --output-filename=LVF-Tool.exe `
@@ -62,12 +76,12 @@ jobs:
           New-Item -ItemType Directory -Force -Path release
 
           Compress-Archive `
-            -Path "build/LVF-Tool.dist/*" `
+            -Path "build/LVF-Tool.exe" `
             -DestinationPath "release/LVF-Tool-${{ github.ref_name }}-windows.zip"
 
-      # -------------------------
+      # ============================================================
       # Linux
-      # -------------------------
+      # ============================================================
 
       - name: Build Linux
         if: matrix.platform == 'linux'
@@ -75,6 +89,7 @@ jobs:
         run: |
           python -m nuitka \
             --standalone \
+            --onefile \
             --enable-plugin=pyside6 \
             --output-dir=build \
             --output-filename=LVF-Tool \
@@ -86,12 +101,13 @@ jobs:
         run: |
           mkdir -p release
 
-          cd build/LVF-Tool.dist
-          zip -r "../../release/LVF-Tool-${{ github.ref_name }}-linux.zip" .
+          zip \
+            "release/LVF-Tool-${{ github.ref_name }}-linux.zip" \
+            build/LVF-Tool
 
-      # -------------------------
-      # Upload artifact
-      # -------------------------
+      # ============================================================
+      # Upload artifacts
+      # ============================================================
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v5
@@ -99,9 +115,9 @@ jobs:
           name: LVF-Tool-${{ github.ref_name }}-${{ matrix.platform }}
           path: release/*.zip
 
-  # =================================
+  # ==============================================================
   # GitHub Release
-  # =================================
+  # ==============================================================
 
   release:
     name: Create GitHub Release
@@ -109,11 +125,20 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+
+      # -------------------------
+      # Download Windows ZIP
+      # -------------------------
+
       - name: Download Windows artifact
         uses: actions/download-artifact@v5
         with:
           name: LVF-Tool-${{ github.ref_name }}-windows
           path: release
+
+      # -------------------------
+      # Download Linux ZIP
+      # -------------------------
 
       - name: Download Linux artifact
         uses: actions/download-artifact@v5
@@ -121,9 +146,14 @@ jobs:
           name: LVF-Tool-${{ github.ref_name }}-linux
           path: release
 
+      # -------------------------
+      # Create Release
+      # -------------------------
+
       - name: Create GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
+        shell: bash
         run: |
           gh release create "${{ github.ref_name }}" \
             release/*.zip \
