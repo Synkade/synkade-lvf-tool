@@ -1,0 +1,84 @@
+name: Build LVF-Tool
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            platform: windows
+            python: "3.12"
+            extension: ".exe"
+
+          - os: ubuntu-latest
+            platform: linux
+            python: "3.12"
+            extension: ""
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install nuitka
+
+      - name: Install FFmpeg
+        if: matrix.platform == 'linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+
+      - name: Build with Nuitka
+        run: |
+          python -m nuitka \
+            --standalone \
+            --onefile \
+            --enable-plugin=pyside6 \
+            --output-filename=LVF-Tool${{ matrix.extension }} \
+            lvf_tool/__main__.py
+
+      - name: Rename Linux binary
+        if: matrix.platform == 'linux'
+        run: |
+          mv LVF-Tool LVF-Tool-linux
+
+      - name: Rename Windows binary
+        if: matrix.platform == 'windows'
+        shell: pwsh
+        run: |
+          Rename-Item "LVF-Tool.exe" "LVF-Tool-windows.exe"
+
+      - name: Upload Windows artifact
+        if: matrix.platform == 'windows'
+        uses: actions/upload-artifact@v4
+        with:
+          name: LVF-Tool-windows
+          path: LVF-Tool-windows.exe
+
+      - name: Upload Linux artifact
+        if: matrix.platform == 'linux'
+        uses: actions/upload-artifact@v4
+        with:
+          name: LVF-Tool-linux
+          path: LVF-Tool-linux
