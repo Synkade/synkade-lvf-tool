@@ -26,16 +26,16 @@ jobs:
             platform: linux
 
     steps:
-      # -------------------------
+      # ============================================================
       # Checkout
-      # -------------------------
+      # ============================================================
 
       - name: Checkout
         uses: actions/checkout@v6
 
-      # -------------------------
+      # ============================================================
       # Python
-      # -------------------------
+      # ============================================================
 
       - name: Setup Python
         uses: actions/setup-python@v7
@@ -43,9 +43,9 @@ jobs:
           python-version: "3.12"
           cache: pip
 
-      # -------------------------
+      # ============================================================
       # Dependencies
-      # -------------------------
+      # ============================================================
 
       - name: Install dependencies
         shell: bash
@@ -61,7 +61,23 @@ jobs:
       - name: Build Windows
         if: matrix.platform == 'windows'
         shell: pwsh
-        run: python -m nuitka --standalone --enable-plugin=pyside6 --assume-yes-for-downloads --output-dir=build --output-filename=LVF-Tool.exe lvf_tool
+        run: |
+          python -m nuitka --standalone --enable-plugin=pyside6 --assume-yes-for-downloads --output-dir=build --output-filename=LVF-Tool.exe lvf_tool
+
+      - name: Debug Windows build
+        if: matrix.platform == 'windows'
+        shell: pwsh
+        run: |
+          Write-Host "========================================"
+          Write-Host "WINDOWS BUILD CONTENTS"
+          Write-Host "========================================"
+
+          if (Test-Path "build") {
+              Get-ChildItem -Recurse -Force "build"
+          }
+          else {
+              Write-Error "The build directory does not exist."
+          }
 
       - name: Package Windows
         if: matrix.platform == 'windows'
@@ -69,8 +85,17 @@ jobs:
         run: |
           New-Item -ItemType Directory -Force -Path release
 
+          $dist = Get-ChildItem -Path "build" -Directory -Filter "*.dist" | Select-Object -First 1
+
+          if (-not $dist) {
+              Write-Error "Nuitka .dist directory was not found."
+              exit 1
+          }
+
+          Write-Host "Using distribution directory: $($dist.FullName)"
+
           Compress-Archive `
-            -Path "build/LVF-Tool.dist/*" `
+            -Path "$($dist.FullName)/*" `
             -DestinationPath "release/LVF-Tool-${{ github.ref_name }}-windows.zip"
 
       # ============================================================
@@ -89,14 +114,38 @@ jobs:
             --output-filename=LVF-Tool \
             lvf_tool
 
+      - name: Debug Linux build
+        if: matrix.platform == 'linux'
+        shell: bash
+        run: |
+          echo "========================================"
+          echo "LINUX BUILD CONTENTS"
+          echo "========================================"
+
+          if [ -d "build" ]; then
+            find build -maxdepth 3 -print
+          else
+            echo "The build directory does not exist."
+            exit 1
+          fi
+
       - name: Package Linux
         if: matrix.platform == 'linux'
         shell: bash
         run: |
           mkdir -p release
 
+          DIST_DIR=$(find build -maxdepth 1 -type d -name "*.dist" -print -quit)
+
+          if [ -z "$DIST_DIR" ]; then
+            echo "Nuitka .dist directory was not found."
+            exit 1
+          fi
+
+          echo "Using distribution directory: $DIST_DIR"
+
           cd build
-          zip -r "../release/LVF-Tool-${{ github.ref_name }}-linux.zip" LVF-Tool.dist
+          zip -r "../release/LVF-Tool-${{ github.ref_name }}-linux.zip" "$(basename "$DIST_DIR")"
 
       # ============================================================
       # Upload artifacts
@@ -118,8 +167,16 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      # ============================================================
+      # Checkout
+      # ============================================================
+
       - name: Checkout
         uses: actions/checkout@v6
+
+      # ============================================================
+      # Download Windows artifact
+      # ============================================================
 
       - name: Download Windows artifact
         uses: actions/download-artifact@v5
@@ -127,11 +184,19 @@ jobs:
           name: LVF-Tool-${{ github.ref_name }}-windows
           path: release
 
+      # ============================================================
+      # Download Linux artifact
+      # ============================================================
+
       - name: Download Linux artifact
         uses: actions/download-artifact@v5
         with:
           name: LVF-Tool-${{ github.ref_name }}-linux
           path: release
+
+      # ============================================================
+      # Create GitHub Release
+      # ============================================================
 
       - name: Create GitHub Release
         env:
