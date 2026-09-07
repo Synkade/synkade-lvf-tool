@@ -70,7 +70,7 @@ jobs:
           New-Item -ItemType Directory -Force -Path release
 
           Compress-Archive `
-            -Path "build/LVF-Tool.exe" `
+            -Path "build/LVF-Tool.dist/*" `
             -DestinationPath "release/LVF-Tool-${{ github.ref_name }}-windows.zip"
 
       # ============================================================
@@ -95,9 +95,8 @@ jobs:
         run: |
           mkdir -p release
 
-          zip \
-            "release/LVF-Tool-${{ github.ref_name }}-linux.zip" \
-            build/LVF-Tool
+          cd build
+          zip -r "../release/LVF-Tool-${{ github.ref_name }}-linux.zip" LVF-Tool.dist
 
       # ============================================================
       # Upload artifacts
